@@ -188,6 +188,11 @@ impl Pane for TermWizTerminalPane {
         Ok(())
     }
 
+    fn send_composed_text(&self, text: &str) -> anyhow::Result<()> {
+        // The writer is not linked to a real pty, so we send the composed text like a paste
+        self.send_paste(text)
+    }
+
     fn reader(&self) -> anyhow::Result<Option<Box<dyn std::io::Read + Send>>> {
         Ok(Some(Box::new(self.render_rx.try_clone()?)))
     }
@@ -397,7 +402,7 @@ impl termwiz::terminal::Terminal for TermWizTerminal {
         termwiz::bail!("TermWizTerminalPane has no alt screen");
     }
 
-    fn get_screen_size(&mut self) -> termwiz::Result<ScreenSize> {
+    fn get_screen_size(&self) -> termwiz::Result<ScreenSize> {
         Ok(self.render_tx.screen_size)
     }
 
@@ -553,8 +558,8 @@ pub async fn run<
         let mut window = mux
             .get_window_mut(window_id)
             .ok_or_else(|| anyhow::anyhow!("invalid window id {}", window_id))?;
-        let tab_idx = window.len().saturating_sub(1);
-        window.save_and_then_set_active(tab_idx);
+        let tab_idx = window.count_tabs().saturating_sub(1);
+        window.remember_and_set_active_tab_idx(tab_idx);
 
         Ok((pane.pane_id(), window_id))
     }
